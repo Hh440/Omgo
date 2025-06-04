@@ -20,7 +20,7 @@ export class RoomManagar{
     }
 
     createRoom(user1:User ,user2:User){
-        const roomId= this.generate()
+        const roomId= this.generate().toString()
         this.rooms.set(roomId.toString(),{
             user1,
             user2,
@@ -28,19 +28,30 @@ export class RoomManagar{
         })
 
 
-         user1.socket.emit("send_offer",{
+         user1.socket.emit("send-offer",{
             // type:"send_offer",
             roomId
         })
-
-
-
+    
     }
 
+
+
+    // userLeft(roomId){
+    //     const room= this.rooms.find(x=>x.roomId==roomId)
+
+    // }
+
+
+
+
+
     onOffer(roomId:string,sdp:string){
-        const user2 = this.rooms.get(roomId)?.user1
+        const user2 = this.rooms.get(roomId)?.user2
+        console.log("user2 is "+ user2)
         user2?.socket.emit("offer",{
-           sdp
+           sdp,
+           roomId
 
         })
 
@@ -48,9 +59,11 @@ export class RoomManagar{
 
     onAnswer(roomId:string,sdp:string){
 
-        const user1 = this.rooms.get(roomId)?.user2
-        user1?.socket.emit("offer",{
-            sdp
+        const user1 = this.rooms.get(roomId)?.user1
+        console.log("user1 is "+user1)
+        user1?.socket.emit("answer",{
+            sdp,
+            roomId
         })
 
     }
