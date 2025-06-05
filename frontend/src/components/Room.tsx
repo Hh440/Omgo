@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import {io, Socket } from "socket.io-client"
 
@@ -6,14 +6,30 @@ import {io, Socket } from "socket.io-client"
  const URL= "http://localhost:3000"
 
 
-export const Room = ()=>{
+export const Room = ({
+    name,
+    localAudioTrack,
+    localVideoTrack
+}:{
+    name:string,
+    localAudioTrack:MediaStreamTrack,
+    localVideoTrack:MediaStreamTrack 
+})=>{
 
     const [searachPramas , setSearchParamas]= useSearchParams()
-    const name = searachPramas.get("name")
+    //const name = searachPramas.get("name")
     const [socket,setSocket]= useState<null|Socket>(null)
     const [connected,setConnected]= useState(false)
     const [lobby,setLobby]=useState(true)
-   
+    const [sendingPc,setSendingPc] = useState<null|RTCPeerConnection>(null)
+    const [receivingPc,setdReceivingPc] = useState<null|RTCPeerConnection>(null)
+    const [remoteVideoTrack,setRemoteVideoTrack]= useState<MediaStreamTrack|null>(null)
+    
+    const [remotedAudioTrack,setRemoteAudioTrack]= useState<MediaStreamTrack|null>(null)
+    const [remoteMediaStream,setRemoteMediaStream]= useState<MediaStream|null>(null)
+    const remoteVideoRef= useRef<HTMLVideoElement | null>(null)
+    const localVideoRef =  useRef<HTMLVideoElement|null>(null)
+    
     useEffect(()=>{
 
         //logic to init user to the room 
@@ -21,24 +37,89 @@ export const Room = ()=>{
             autoConnect:true
         })
 
-        socket.on("send-offer",({roomId})=>{
+        socket.on("send-offer",async ({roomId})=>{
             //setConnected(true)
             alert("send offer ")
 
             setLobby(false)
+            const pc= new RTCPeerConnection()
+            setSendingPc(pc)
 
-            socket.emit("offer",{
-                    sdp:"",
+            if(localAudioTrack){
+
+                 pc.addTrack(localVideoTrack)
+
+            }
+
+            if(localVideoTrack){
+                pc.addTrack(localAudioTrack)
+            }
+
+            //pc.addTrack(localAudioTrack)
+
+           
+
+            
+
+            pc.onicecandidate = async() =>{
+                const sdp= await pc.createOffer() 
+                
+                socket.emit("offer",{
+                    sdp,
                     roomId
             })
+
+            }
+
+            
         })
 
-        socket.on("offer",({roomId,offer})=>{
+        socket.on("offer",async({roomId,offer})=>{
 
             alert("send answer please")
             setLobby(false)
+
+            const pc= new RTCPeerConnection()
+            pc.setRemoteDescription({sdp:offer,type:"offer"})
+
+            const sdp = await pc.createAnswer();
+
+            const stream = new MediaStream()
+
+            if(remoteVideoRef.current){
+
+                 remoteVideoRef.current.srcObject= stream
+
+            }
+
+        
+            setRemoteMediaStream(stream)
+            setdReceivingPc(pc)
+
+            pc.ontrack=(({track,type})=>{
+                if(type=='audio'){
+                  //  setRemoteAudioTrack(track)
+
+                  // @ts-ignore
+
+                  remoteVideoRef.current?.srcObject.addTrack(track)
+                }else{
+                   // setRemoteVideoTrack(track)
+
+                   // @ts-ignore
+
+                   remoteVideoRef.current?.srcObject.addTrack(track)
+                }
+
+                //@ts-ignore
+
+                remoteVideoRef.current.play()
+            })
+
+
+            
             socket.emit("answer",{
-                sdp:"",
+                sdp:sdp,
                 roomId
             })
 
@@ -47,6 +128,14 @@ export const Room = ()=>{
         socket.on("answer",({roomId,answer})=>{
             setLobby(false)
             alert("connection done")
+            setSendingPc(pc =>{
+                pc?.setRemoteDescription({
+                    type:"answer",
+                    sdp:answer
+                })
+
+                return pc 
+            })
             
 
         })
@@ -62,28 +151,42 @@ export const Room = ()=>{
     },[name])
 
 
+    useEffect(()=>{
+         if(localVideoRef.current){
 
-    if(lobby){
-        return(
-            <div>
-                Waiting to connect you to someone
-            </div>
-        )
-    }
+            localVideoRef.current.srcObject = new MediaStream([localVideoTrack])
+
+            localVideoRef.current.play()
+
+         }
+         
+    },[localVideoRef])
+
+
+
+    // if(lobby){
+    //     return(
+    //         <div>
+    //             Waiting to connect you to someone
+    //         </div>
+    //     )
+    // }
     return(
         <div>
             Hi {name}
 
+              {lobby?"waiting to connect you to someone" : null}
+
 
             <div>
 
-              <video width={400} height={400}/>
-               <video width={400} height={400}/>
+             <video autoPlay width={400} height={400} ref={localVideoRef}/>
+           
+            <video autoPlay width={400} height={400} ref={remoteVideoRef}/>
 
             </div>
 
-            <video width={400} height={400}/>
-            <video width={400} height={400}/>
+            
         </div>
     )
 }
