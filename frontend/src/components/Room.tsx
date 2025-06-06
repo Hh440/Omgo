@@ -22,7 +22,7 @@ export const Room = ({
     const [connected,setConnected]= useState(false)
     const [lobby,setLobby]=useState(true)
     const [sendingPc,setSendingPc] = useState<null|RTCPeerConnection>(null)
-    const [receivingPc,setdReceivingPc] = useState<null|RTCPeerConnection>(null)
+    const [receivingPc,setReceivingPc] = useState<null|RTCPeerConnection>(null)
     const [remoteVideoTrack,setRemoteVideoTrack]= useState<MediaStreamTrack|null>(null)
     
     const [remotedAudioTrack,setRemoteAudioTrack]= useState<MediaStreamTrack|null>(null)
@@ -57,32 +57,63 @@ export const Room = ({
 
             //pc.addTrack(localAudioTrack)
 
+
+
+            pc.onicecandidate = async(e) =>{
+
+                console.log("receiving ice candidate locally")
+
+                socket.emit("add-ice-candidate",{
+                    candidate:e.candidate,
+                    type:"sender",
+                    roomId
+
+                })
+            }
+            
+
            
 
             
 
-            pc.onicecandidate = async() =>{
-                const sdp= await pc.createOffer() 
+           
+
+            pc.onnegotiationneeded = async()=>{
+
+             console.log("on negotiation needed, sending offer")
+                    const sdp= await pc.createOffer() 
+
+                 //@ts-ignore
+
+                 pc.setLocalDescription(sdp)
                 
                 socket.emit("offer",{
                     sdp,
                     roomId
             })
 
+                
+                 
             }
-
+ 
             
         })
 
-        socket.on("offer",async({roomId,offer})=>{
+        socket.on("offer",async({roomId,sdp:remoteSdp})=>{
+
+            console.log("recevied offer")
 
             alert("send answer please")
             setLobby(false)
 
             const pc= new RTCPeerConnection()
-            pc.setRemoteDescription({sdp:offer,type:"offer"})
+            pc.setRemoteDescription(remoteSdp)
 
             const sdp = await pc.createAnswer();
+
+            //@ts-ignore
+
+            pc.setLocalDescription(sdp)
 
             const stream = new MediaStream()
 
@@ -94,9 +125,23 @@ export const Room = ({
 
         
             setRemoteMediaStream(stream)
-            setdReceivingPc(pc)
+            setReceivingPc(pc)
+
+             pc.onicecandidate = async(e) =>{
+
+                 console.log("on ice candidate on receving side")
+
+                socket.emit("add-ice-candidate",{
+                    candidate:e.candidate,
+                    type:"receiver",
+                    roomId
+                })
+            }
+
 
             pc.ontrack=(({track,type})=>{
+
+                console.error("inside ontrack")
                 if(type=='audio'){
                   //  setRemoteAudioTrack(track)
 
@@ -125,17 +170,16 @@ export const Room = ({
 
         })
 
-        socket.on("answer",({roomId,answer})=>{
+        socket.on("answer",({roomId,sdp:remoteSdp})=>{
             setLobby(false)
             alert("connection done")
             setSendingPc(pc =>{
-                pc?.setRemoteDescription({
-                    type:"answer",
-                    sdp:answer
-                })
+                pc?.setRemoteDescription(remoteSdp)
 
                 return pc 
             })
+
+            console.log("loop closed")
             
 
         })
@@ -144,6 +188,39 @@ export const Room = ({
         socket.on("lobby",()=>{
             setLobby(true)
         
+        })
+
+
+        socket.on("add-ice-candidate",({candidate,type})=>{
+
+            console.log("add ice candidate from remote")
+            console.log({candidate,type})
+            if(type=='sender'){
+
+                setReceivingPc(pc =>{
+
+
+                    pc?.addIceCandidate(candidate)
+
+
+                    return pc
+                })
+
+            }else{
+
+                setSendingPc(pc =>{
+
+
+                    pc?.addIceCandidate(candidate)
+
+
+                    return pc
+                })
+
+            }
+
+
+
         })
 
         setSocket(socket)

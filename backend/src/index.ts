@@ -27,6 +27,7 @@ io.on("connection",(socket:Socket)=>{
     userManager.addUser("random_name",socket)
 
     socket.on("disconnect",()=>{
+      console.log('user diconnected ')
       userManager.removeUser(socket.id)
 
     })

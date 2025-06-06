@@ -90,7 +90,7 @@ export class UserManager{
             console.log("offer recieved")
             console.log(roomId)
 
-            this.roomManager.onOffer(roomId,sdp) 
+            this.roomManager.onOffer(roomId,sdp,socket.id) 
 
         })
 
@@ -98,7 +98,18 @@ export class UserManager{
 
             console.log("answer recieved")
 
-            this.roomManager.onAnswer(roomId,sdp) 
+            this.roomManager.onAnswer(roomId,sdp,socket.id) 
+
+        })
+
+        socket.on("add-ice-candidate",({candidate,roomId,type})=>{
+
+            this.roomManager.onIceCanditate(roomId,socket.id,candidate,type)
+
+
+
+
+
 
         })
     }
