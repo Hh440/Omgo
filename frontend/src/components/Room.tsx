@@ -46,13 +46,18 @@ export const Room = ({
             setSendingPc(pc)
 
             if(localAudioTrack){
+                console.error("added local audio track")
+                console.log(localAudioTrack)
+                pc.addTrack(localAudioTrack)
 
-                 pc.addTrack(localVideoTrack)
+                
 
             }
 
             if(localVideoTrack){
-                pc.addTrack(localAudioTrack)
+                console.error("add video track")
+                console.log(localVideoTrack)
+                 pc.addTrack(localVideoTrack)
             }
 
             //pc.addTrack(localAudioTrack)
@@ -60,6 +65,10 @@ export const Room = ({
 
 
             pc.onicecandidate = async(e) =>{
+
+                if(!e.candidate){
+                    return;
+                }
 
                 console.log("receiving ice candidate locally")
 
@@ -139,9 +148,13 @@ export const Room = ({
             }
 
 
-            pc.ontrack=(({track,type})=>{
+            pc.ontrack=(e)=>{
 
                 console.error("inside ontrack")
+
+                const {track,type} = e
+
+                
                 if(type=='audio'){
                   //  setRemoteAudioTrack(track)
 
@@ -159,14 +172,46 @@ export const Room = ({
                 //@ts-ignore
 
                 remoteVideoRef.current.play()
-            })
+            }
 
-
+            console.log(pc.ontrack)
             
             socket.emit("answer",{
                 sdp:sdp,
                 roomId
             })
+
+
+            setTimeout(() => {
+                const track1 = pc.getTransceivers()[0].receiver.track
+                const track2 = pc.getTransceivers()[1].receiver.track
+                console.log(track1);
+                if (track1.kind === "video") {
+                    setRemoteAudioTrack(track2)
+                    setRemoteVideoTrack(track1)
+                } else {
+                    setRemoteAudioTrack(track1)
+                    setRemoteVideoTrack(track2)
+                }
+                //@ts-ignore
+                remoteVideoRef.current.srcObject.addTrack(track1)
+                //@ts-ignore
+                remoteVideoRef.current.srcObject.addTrack(track2)
+                //@ts-ignore
+                remoteVideoRef.current.play();
+                // if (type == 'audio') {
+                //     // setRemoteAudioTrack(track);
+                //     // @ts-ignore
+                //     remoteVideoRef.current.srcObject.addTrack(track)
+                // } else {
+                //     // setRemoteVideoTrack(track);
+                //     // @ts-ignore
+                //     remoteVideoRef.current.srcObject.addTrack(track)
+                // }
+                // //@ts-ignore
+            }, 5000)
+
+            
 
         })
 
